@@ -16,6 +16,21 @@
             <artifactId>javafx-controls</artifactId>
             <version>17.0.6</version>
         </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-fxml</artifactId>
+            <version>17.0.6</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-graphics</artifactId>
+            <version>17.0.6</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-swing</artifactId>
+            <version>17.0.6</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
@@ -37,7 +52,13 @@
                         <!-- Usage: mvn clean javafx:run -->
                         <id>default-cli</id>
                         <configuration>
-                            <mainClass>org.example.App</mainClass>
+                            <mainClass>com.projekt.paint.MainApp</mainClass>
+                            <options>
+                                <option>--module-path</option>
+                                <option>${project.build.directory}/lib</option>
+                                <option>--add-modules</option>
+                                <option>javafx.controls,javafx.fxml,javafx.graphics,javafx.swing</option>
+                            </options>
                         </configuration>
                     </execution>
                 </executions>

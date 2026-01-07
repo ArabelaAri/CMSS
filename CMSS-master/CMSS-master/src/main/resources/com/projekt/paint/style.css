@@ -1,0 +1,21 @@
+.root {
+    -fx-background-color: #f9f9f9;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13pt;
+}
+
+.side-toolbar {
+    -fx-background-color: #eeeeee;
+    -fx-padding: 10;
+    -fx-border-color: #cfcfcf;
+    -fx-border-width: 0 1 0 0;
+}
+
+.button, .toggle-button, .menu-button, .combo-box, .color-picker {
+    -fx-pref-width: 110;
+}
+
+.stack-pane {
+    -fx-background-color: white;
+}
+

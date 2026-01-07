@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.canvas.Canvas?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.projekt.paint.PaintController"
+            stylesheets="@style.css">
+
+    <left>
+        <VBox spacing="8.0" styleClass="side-toolbar" prefWidth="120.0" BorderPane.alignment="CENTER">
+            <children>
+                <MenuButton text="Menu" fx:id="menuButton">
+                    <items>
+                        <MenuItem text="New Canvas" onAction="#onNewCanvas"/>
+                        <MenuItem text="Open..." onAction="#onOpenFile"/>
+                        <MenuItem text="Save" onAction="#onSaveFile"/>
+                        <MenuItem text="Save As..." onAction="#onSaveAsFile"/>
+                        <SeparatorMenuItem/>
+                        <MenuItem text="Import Image..." onAction="#onImportImage"/>
+                        <SeparatorMenuItem/>
+                        <MenuItem text="Exit" onAction="#onExitApp"/>
+                    </items>
+                </MenuButton>
+
+                <HBox spacing="6.0">
+                    <children>
+                        <Button text="+" fx:id="zoomInButton" onAction="#onZoomIn"/>
+                        <Button text="-" fx:id="zoomOutButton" onAction="#onZoomOut"/>
+                    </children>
+                </HBox>
+
+                <ComboBox fx:id="brushesCombo" prefWidth="110.0" promptText="Brushes"/>
+                <VBox spacing="4.0">
+                    <children>
+                        <Label text="Thickness"/>
+                        <Slider fx:id="sizeSlider" min="1" max="60" value="5"/>
+                        <Label fx:id="sizeLabel" text="5"/>
+                    </children>
+                </VBox>
+
+                <ToggleButton text="Eraser" fx:id="eraserButton" onAction="#onEraserToggle"/>
+
+                <HBox spacing="6.0">
+                    <children>
+                        <Button text="⟲" fx:id="undoButton" onAction="#onUndo"/>
+                        <Button text="⟳" fx:id="redoButton" onAction="#onRedo"/>
+                    </children>
+                </HBox>
+
+                <MenuButton text="Filters" fx:id="filtersMenu">
+                    <items>
+                        <MenuItem text="Negative" onAction="#onApplyEffect" userData="negative"/>
+                        <MenuItem text="Blur" onAction="#onApplyEffect" userData="blur"/>
+                        <MenuItem text="Grayscale" onAction="#onApplyEffect" userData="grayscale"/>
+                        <MenuItem text="Brighten" onAction="#onApplyEffect" userData="brighten"/>
+                    </items>
+                </MenuButton>
+
+                <Pane VBox.vgrow="ALWAYS"/>
+
+                <ColorPicker fx:id="colorPicker"/>
+            </children>
+
+            <padding>
+                <Insets top="10" right="10" bottom="10" left="10"/>
+            </padding>
+        </VBox>
+    </left>
+
+    <center>
+        <ScrollPane fx:id="scrollPane" fitToWidth="true" fitToHeight="true" hbarPolicy="ALWAYS" vbarPolicy="ALWAYS">
+            <content>
+                <Canvas fx:id="canvas" width="1100.0" height="700.0"/>
+            </content>
+        </ScrollPane>
+    </center>
+</BorderPane>
