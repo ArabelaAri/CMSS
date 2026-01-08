@@ -25,19 +25,22 @@
                     </items>
                 </MenuButton>
 
-                <HBox spacing="6.0">
+                <HBox spacing="6.0" alignment="CENTER">
                     <children>
-                        <Button text="+" fx:id="zoomInButton" onAction="#onZoomIn"/>
-                        <Button text="-" fx:id="zoomOutButton" onAction="#onZoomOut"/>
+                        <Button text="−" fx:id="zoomOutButton" onAction="#onZoomOut" prefWidth="35"/>
+                        <Button text="+" fx:id="zoomInButton" onAction="#onZoomIn" prefWidth="35"/>
                     </children>
                 </HBox>
 
                 <ComboBox fx:id="brushesCombo" prefWidth="110.0" promptText="Brushes"/>
-                <VBox spacing="4.0">
+                <VBox spacing="6.0">
                     <children>
-                        <Label text="Thickness"/>
-                        <Slider fx:id="sizeSlider" min="1" max="60" value="5"/>
-                        <Label fx:id="sizeLabel" text="5"/>
+                        <Label text="Brush Size" style="-fx-font-weight: bold;"/>
+                        <Slider fx:id="sizeSlider" min="1" max="60" value="5" 
+                                showTickLabels="false" showTickMarks="true" 
+                                majorTickUnit="20" minorTickCount="4"
+                                blockIncrement="5"/>
+                        <Label fx:id="sizeLabel" text="5 px" style="-fx-font-size: 11px; -fx-text-fill: #666;"/>
                     </children>
                 </VBox>
 
@@ -58,10 +61,20 @@
                         <MenuItem text="Brighten" onAction="#onApplyEffect" userData="brighten"/>
                     </items>
                 </MenuButton>
+                <ToggleButton
+                    text="Generate random shapes"
+                    onAction="#onGenerateRandomShapes"
+                    userData="random">
+                    <tooltip>
+                        <Tooltip text="Generate random shapes"/>
+                    </tooltip>
+                </ToggleButton>
+            
 
                 <Pane VBox.vgrow="ALWAYS"/>
 
                 <ColorPicker fx:id="colorPicker"/>
+                <ToggleButton text="About" fx:id="aboutButton" onAction="#onAbout"/>
             </children>
 
             <padding>
@@ -77,4 +90,5 @@
             </content>
         </ScrollPane>
     </center>
+
 </BorderPane>

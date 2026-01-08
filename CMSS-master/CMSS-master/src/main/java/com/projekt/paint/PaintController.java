@@ -1,30 +1,42 @@
 package com.projekt.paint;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.util.Optional;
+import java.util.Random;
+import java.util.Stack;
+import javax.imageio.ImageIO;
 import javafx.application.Platform;
+import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXML;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.control.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ColorPicker;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.Label;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Slider;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
 import javafx.scene.image.Image;
 import javafx.scene.image.WritableImage;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.File;
-import javafx.embed.swing.SwingFXUtils;
-import java.io.IOException;
-import java.util.Stack;
-import javafx.geometry.Insets;
-import javafx.scene.control.*;
-import javafx.scene.control.Alert.AlertType;
-import javafx.scene.layout.GridPane;
 import javafx.util.Pair;
-import java.util.Optional;
 
 
 public class PaintController {
@@ -33,13 +45,6 @@ public class PaintController {
     @FXML private ColorPicker colorPicker;
     @FXML private Slider sizeSlider;
     @FXML private ComboBox<String> brushesCombo;
-    @FXML private ToggleButton eraserButton;
-    @FXML private Button undoButton;
-    @FXML private Button redoButton;
-    @FXML private Button zoomInButton;
-    @FXML private Button zoomOutButton;
-    @FXML private MenuButton menuButton;
-    @FXML private MenuButton filtersMenu;
     @FXML private ScrollPane scrollPane;
     @FXML private Label sizeLabel;
 
@@ -52,9 +57,13 @@ public class PaintController {
 
     // --- Zoom ---
     private double zoomFactor = 1.0;
-    private final double ZOOM_STEP = 1.1;
-    private final double MIN_ZOOM = 0.1;
-    private final double MAX_ZOOM = 10.0;
+    private final double ZOOM_STEP = 0.2;
+    private final double MIN_ZOOM = 0.5;
+    private final double MAX_ZOOM = 5.0;
+    
+    // Zoom anchor point (for zooming towards cursor/touch)
+    private double zoomAnchorX = 0;
+    private double zoomAnchorY = 0;
 
     @FXML
     private void initialize() {
@@ -78,10 +87,13 @@ public class PaintController {
             onToolSelected(selected);
         });
 
-        // Initialize size slider listener
+        // Initialize size slider listener with better formatting
         sizeSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
-            sizeLabel.setText(String.valueOf((int) Math.round(newVal.doubleValue())) + "px");
+            int size = (int) Math.round(newVal.doubleValue());
+            sizeLabel.setText(size + " px");
         });
+        // Set initial label
+        sizeLabel.setText((int)sizeSlider.getValue() + " px");
 
         // Uloží počáteční stav canvasu pro Undo
         saveStateForUndo();
@@ -91,6 +103,42 @@ public class PaintController {
         canvas.setOnMouseReleased(e -> {
             currentTool.onRelease(gc, e.getX(), e.getY());
             saveStateForUndo();
+        });
+
+        // Podpora zoomu kolečkem myši
+        canvas.setOnScroll(event -> {
+            event.consume();
+            
+            // získání pozice myši a určení směru zoomu
+            double mouseX = event.getX();
+            double mouseY = event.getY();
+            double zoomDirection = event.getDeltaY() > 0 ? 1 : -1;
+            double zoomChange = zoomDirection * ZOOM_STEP * 0.5; // menší krok pro jemnější zoom
+            
+            // Spočítání nového zoom faktoru
+            double oldZoom = zoomFactor;
+            zoomFactor = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomFactor + zoomChange));
+            
+            if (oldZoom != zoomFactor) {
+                // uložení pozice myši jako anchor pointu
+                zoomAnchorX = mouseX;
+                zoomAnchorY = mouseY;
+                applyZoom();
+            }
+        });
+
+        // popravena podpora zoomu pomocí gesto pinch-to-zoom (dotykové obrazovky)
+        canvas.setOnZoom(event -> {
+            event.consume();
+            
+            double oldZoom = zoomFactor;
+            zoomFactor = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomFactor * event.getZoomFactor()));
+            
+            if (oldZoom != zoomFactor) {
+                zoomAnchorX = event.getX();
+                zoomAnchorY = event.getY();
+                applyZoom();
+            }
         });
 
         canvas.sceneProperty().addListener((obs, oldScene, newScene) -> {
@@ -117,10 +165,9 @@ public class PaintController {
         WritableImage snapshot = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
         canvas.snapshot(null, snapshot);
         undoHistory.push(snapshot);
-        redoHistory.clear(); // po nové akci se Redo historie maže
+        redoHistory.clear(); // Vymaže redo historii při novém tahu
     }
 
-    // --- Funkce UNDO ---
     @FXML
     private void onUndo() {
         if (undoHistory.size() > 1) {
@@ -131,7 +178,6 @@ public class PaintController {
         }
     }
 
-    // --- Funkce REDO ---
     @FXML
     private void onRedo() {
         if (!redoHistory.isEmpty()) {
@@ -157,7 +203,7 @@ public class PaintController {
         return (int) Math.round(sizeSlider.getValue());
     }
 
-    // --- ULOŽENÍ OBRÁZKU ---
+    // Uložení obrázku
     @FXML
     private void onSaveImage() {
         FileChooser fileChooser = new FileChooser();
@@ -203,7 +249,7 @@ public class PaintController {
         }
     }
 
-    // --- NAČTENÍ OBRÁZKU ---
+    // Načtení obrázku
     @FXML
     private void onLoadImage() {
         FileChooser fileChooser = new FileChooser();
@@ -225,14 +271,13 @@ public class PaintController {
         }
     }
 
-    // --- ZAVŘENÍ APLIKACE ---
     @FXML
     private void onExitApp() {
         Stage stage = (Stage) canvas.getScene().getWindow();
         stage.close();
     }
 
-    // --- Pomocné ---
+    // Pomocná metoda pro získání snapshotu canvasu
     public WritableImage getCanvasSnapshot() {
         WritableImage snapshot = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
         canvas.snapshot(null, snapshot);
@@ -244,41 +289,41 @@ public class PaintController {
     }
 
     @FXML
-    private void onShowMessageWindow() {
-        // Vytvoření nového okna
+    private void onAbout() {
+        // Vytvoření okna s informacemi o apliaci a týmu
         Stage messageStage = new Stage();
-        messageStage.setTitle("Informace");
+        messageStage.setTitle("About");
 
-        // Text, který se zobrazí
-        Label textLabel = new Label( "About: \n" +
-                                        "App version: 1.0.8 \n" +
-                                        "Owners: Křivský Matěj \n" +
-                                        "        Soldán Tomáš \n" +
-                                        "        Vašek Martin\n" +
-                                        "        Všianský Kryštof\n" +
-                                        "Tester & Consultant: Rousek Ondřej");
-        textLabel.getStyleClass().add("message-text");
+        TextArea textArea = new TextArea( 
+                                    "Application informations:\n" +
+                                        "\n"+
+                                        "Date of last update: 8.1.2026\n" +
+                                        "Version: 1.0\n" +
+                                        "\n"+
+                                    "Our team: \n" +
+                                        "\n"+
+                                        "Adéla Kozinová \n" +
+                                        "Lucie Fišerová\n" +
+                                        "Adam Fendrich\n" +
+                                        "\n"+
+                                        "   Our team is made up of inexperienced fresh adult students from the same school. Despite lacking experience, we have the advantage that our skills and knowledge are frowing rapidly and this application is growing with us. Thank you for using our application and we wish you many successful creations.\n" +
+                                        "\n"+
+                                    "Developed as a school project for the subject programming.\n");
+                                        
+        textArea.setEditable(false);
+        textArea.setWrapText(true);
+        textArea.getStyleClass().add("message-text");
 
-        // Tlačítko pro zavření
-        Button closeButton = new Button("Zavřít");
-        closeButton.getStyleClass().add("close-button");
-        closeButton.setOnAction(e -> messageStage.close());
-
-        // Rozložení (svislé)
-        VBox layout = new VBox(15, textLabel, closeButton);
+        // Rozložení 
+        VBox layout = new VBox(15, textArea);
         layout.getStyleClass().add("message-window");
         layout.setAlignment(Pos.CENTER);
 
-        // Scéna + připojení CSS stylu
-        Scene scene = new Scene(layout, 300, 240);
+        // Scéna a CSS
+        Scene scene = new Scene(layout, 700, 280);
         scene.getStylesheets().add(getClass().getResource("style.css").toExternalForm());
 
         messageStage.setScene(scene);
-
-        // Zamezí interakci s hlavním oknem (volitelné)
-        messageStage.initModality(Modality.WINDOW_MODAL);
-        messageStage.initOwner(canvas.getScene().getWindow());
-
         messageStage.show();
     }
 
@@ -301,15 +346,12 @@ public class PaintController {
     private void applyEffect(Function effect) {
         if (effect != null) {
             effect.apply(canvas, gc);
-            saveStateForUndo(); // pokud máš undo systém
+            saveStateForUndo();     
             System.out.println("Použit efekt: " + effect.getName());
         }
     }
 
-    /**
-     * Tato metoda se stará o přepnutí aktivního nástroje podle názvu.
-     * Může být volána z libovolného místa (např. i z menu nebo tlačítka).
-     */
+    // Metoda pro přepnutí aktivního nástroje podle názvu 
     private void onToolSelected(String selected) {
         switch (selected) {
             // Hlavní nástroje
@@ -326,10 +368,8 @@ public class PaintController {
         System.out.println("Aktuální nástroj: " + selected);
     }
 
-    /**
-     * Obnoví plátno podle posledního uloženého stavu (Undo historie).
-     * Používá se např. při dočasných efektech jako lupa.
-     */
+    // Obnoví plátno podle posledního uloženého stavu (Undo historie).
+     
     public void redrawCanvas() {
         if (!undoHistory.isEmpty()) {
             Image lastState = undoHistory.peek();
@@ -340,81 +380,6 @@ public class PaintController {
             gc.setFill(Color.WHITE);
             gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
         }
-    }
-
-    @FXML
-    private void onChangeResolution() {
-        // Vytvoření dialogu
-        Dialog<Pair<Integer, Integer>> dialog = new Dialog<>();
-        dialog.setTitle("Změna rozlišení plátna");
-        dialog.setHeaderText("Zadejte nové rozměry plátna:");
-
-        // Tlačítka
-        ButtonType applyButtonType = new ButtonType("Použít", ButtonBar.ButtonData.OK_DONE);
-        ButtonType resetButtonType = new ButtonType("Obnovit výchozí", ButtonBar.ButtonData.LEFT);
-        dialog.getDialogPane().getButtonTypes().addAll(applyButtonType, resetButtonType, ButtonType.CANCEL);
-
-        // Pole pro šířku a výšku (jen čísla)
-        TextField widthField = new TextField(String.valueOf((int) canvas.getWidth()));
-        widthField.setPromptText("Šířka");
-        widthField.textProperty().addListener((obs, oldVal, newVal) -> {
-            if (!newVal.matches("\\d*")) widthField.setText(newVal.replaceAll("[^\\d]", ""));
-        });
-
-        TextField heightField = new TextField(String.valueOf((int) canvas.getHeight()));
-        heightField.setPromptText("Výška");
-        heightField.textProperty().addListener((obs, oldVal, newVal) -> {
-            if (!newVal.matches("\\d*")) heightField.setText(newVal.replaceAll("[^\\d]", ""));
-        });
-
-        // Rozložení v mřížce
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(20, 150, 10, 10));
-
-        grid.add(new Label("Šířka:"), 0, 0);
-        grid.add(widthField, 1, 0);
-        grid.add(new Label("Výška:"), 0, 1);
-        grid.add(heightField, 1, 1);
-
-        dialog.getDialogPane().setContent(grid);
-
-        // Výchozí focus
-        Platform.runLater(widthField::requestFocus);
-
-        // Zpracování výsledku
-        dialog.setResultConverter(dialogButton -> {
-            if (dialogButton == applyButtonType) {
-                try {
-                    int w = Integer.parseInt(widthField.getText());
-                    int h = Integer.parseInt(heightField.getText());
-                    return new Pair<>(w, h);
-                } catch (NumberFormatException e) {
-                    return null;
-                }
-            } else if (dialogButton == resetButtonType) {
-                return new Pair<>(1060, 600); // výchozí hodnoty
-            }
-            return null;
-        });
-
-        // Získání výsledku
-        Optional<Pair<Integer, Integer>> result = dialog.showAndWait();
-
-        result.ifPresent(size -> {
-            int newWidth = size.getKey();
-            int newHeight = size.getValue();
-
-            WritableImage snapshot = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
-            canvas.snapshot(null, snapshot);
-
-            canvas.setWidth(newWidth);
-            canvas.setHeight(newHeight);
-
-            gc.drawImage(snapshot, 0, 0, newWidth, newHeight);
-            saveStateForUndo();
-        });
     }
 
     @FXML
@@ -445,7 +410,9 @@ public class PaintController {
     @FXML
     private void onZoomIn() {
         if (zoomFactor < MAX_ZOOM) {
-            zoomFactor *= ZOOM_STEP;
+            zoomAnchorX = canvas.getWidth() / 2;
+            zoomAnchorY = canvas.getHeight() / 2;
+            zoomFactor = Math.min(zoomFactor + ZOOM_STEP, MAX_ZOOM);
             applyZoom();
         }
     }
@@ -453,17 +420,41 @@ public class PaintController {
     @FXML
     private void onZoomOut() {
         if (zoomFactor > MIN_ZOOM) {
-            zoomFactor /= ZOOM_STEP;
+            zoomAnchorX = canvas.getWidth() / 2;
+            zoomAnchorY = canvas.getHeight() / 2;
+            zoomFactor = Math.max(zoomFactor - ZOOM_STEP, MIN_ZOOM);
             applyZoom();
         }
     }
 
     private void applyZoom() {
+        // Calculate the position of the anchor point before zoom
+        double oldScale = canvas.getScaleX();
+        
         canvas.setScaleX(zoomFactor);
         canvas.setScaleY(zoomFactor);
-        redrawCanvas();
-        scrollPane.setHbarPolicy(zoomFactor > 1.0 ? ScrollPane.ScrollBarPolicy.ALWAYS : ScrollPane.ScrollBarPolicy.NEVER);
-        scrollPane.setVbarPolicy(zoomFactor > 1.0 ? ScrollPane.ScrollBarPolicy.ALWAYS : ScrollPane.ScrollBarPolicy.NEVER);
+        
+        // Adjust translation to zoom towards the anchor point
+        double scaledWidth = canvas.getWidth() * zoomFactor;
+        double scaledHeight = canvas.getHeight() * zoomFactor;
+        
+        // Calculate how much to translate to keep the anchor point stationary
+        double deltaX = (zoomFactor - 1) * (canvas.getWidth() / 2 - zoomAnchorX);
+        double deltaY = (zoomFactor - 1) * (canvas.getHeight() / 2 - zoomAnchorY);
+        
+        canvas.setTranslateX(deltaX);
+        canvas.setTranslateY(deltaY);
+        
+        // Show scrollbars only when zoomed in
+        if (zoomFactor > 1.0) {
+            scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+            scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        } else {
+            scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+            scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        }
+        
+        System.out.println("Zoom: " + Math.round(zoomFactor * 100) + "%");
     }
 
     @FXML
@@ -471,6 +462,55 @@ public class PaintController {
         currentTool = new EraserTool(this);
     }
 
-
-
+    // --- NOVÁ FUNKCIONALITA: Generování náhodných tvarů ---
+    @FXML
+    private void onGenerateRandomShapes() {
+        Random random = new Random();
+        int count = 3; // Počet obrazců
+        double w = canvas.getWidth();
+        double h = canvas.getHeight();
+ 
+        for (int i = 0; i < count; i++) {
+            Color color = Color.color(random.nextDouble(), random.nextDouble(), random.nextDouble());
+            gc.setFill(color);
+            gc.setStroke(color);
+            gc.setLineWidth(2 + random.nextDouble() * 5);
+ 
+            // Výběr z 5 druhů
+            int shapeType = random.nextInt(5);
+            double size = 40 + random.nextDouble() * 80;
+            double x = random.nextDouble() * (w - size);
+            double y = random.nextDouble() * (h - size);
+ 
+            switch (shapeType) {
+                case 0 -> gc.fillOval(x, y, size, size); // Kruh
+                case 1 -> gc.fillRect(x, y, size, size); // Obdélník
+                case 2 -> gc.strokeLine(x, y, random.nextDouble() * w, random.nextDouble() * h); // Čára
+                case 3 -> drawRandomTriangle(x, y, size, random); // Trojúhelník
+                case 4 -> drawRandomStar(x + size/2, y + size/2, random.nextInt(3,7), size/2, size/4, random); // Hvězda
+            }
+        }
+        saveStateForUndo();
+    }
+ 
+    // Pomocná metoda pro vykreslení trojúhelníku
+    private void drawRandomTriangle(double x, double y, double size, Random r) {
+        double[] xPoints = {x, x + size, x + r.nextDouble() * size};
+        double[] yPoints = {y + size, y + size, y};
+        gc.fillPolygon(xPoints, yPoints, 3);
+    }
+ 
+    // Pomocná metoda pro vykreslení hvězdy
+    private void drawRandomStar(double centerX, double centerY, int arms, double outerRadius, double innerRadius, Random r) {
+        double[] xPoints = new double[arms * 2];
+        double[] yPoints = new double[arms * 2];
+        double angleStep = Math.PI / arms;
+ 
+        for (int i = 0; i < arms * 2; i++) {
+            double radius = (i % 2 == 0) ? outerRadius : innerRadius;
+            xPoints[i] = centerX + Math.cos(i * angleStep) * radius;
+            yPoints[i] = centerY + Math.sin(i * angleStep) * radius;
+        }
+        gc.fillPolygon(xPoints, yPoints, arms * 2);
+    }    
 }
